@@ -1,65 +1,9 @@
 use super::bitboard::Bitboard;
-use std::cmp;
+use super::magic_bitboards::{BISHOP_BLOCKER_MASKS, BISHOP_MAP, ROOK_BLOCKER_MASKS, ROOK_MAP};
 use std::fmt;
 
 const WHITE_PIECES: [&str; 6] = ["♙", "♖", "♘", "♗", "♕", "♔"];
 const BLACK_PIECES: [&str; 6] = ["♟︎", "♜", "♞", "♝", "♛", "♚"];
-
-pub fn get_rook_moves() -> [Bitboard; 64] {
-    let mut res: [Bitboard; 64] = [Bitboard::default(); 64];
-
-    for i in 0..8 {
-        for j in 0..8 {
-            for k in 0..8 {
-                res[i * 8 + j].set(i, k);
-                res[i * 8 + j].set(k, j);
-            }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(i, 0);
-            res[i * 8 + j].unset(i, 7);
-            res[i * 8 + j].unset(0, j);
-            res[i * 8 + j].unset(7, j);
-        }
-    }
-
-    res
-}
-
-pub fn get_bishop_moves() -> [Bitboard; 64] {
-    let mut res: [Bitboard; 64] = [Bitboard::default(); 64];
-
-    for i in 0..8 {
-        for j in 0..8 {
-            let m = cmp::min(i, j);
-            let ni = i - m;
-            let nj = j - m;
-            let diagonal_length = cmp::min(8 - ni, 8 - nj);
-            for k in 0..diagonal_length {
-                res[i * 8 + j].set(ni + k, nj + k);
-            }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(ni, nj);
-            res[i * 8 + j].unset(ni + diagonal_length - 1, nj + diagonal_length - 1);
-        }
-    }
-
-    for i in 0..8 {
-        for j in 0..8 {
-            let m = cmp::min(7 - i, j);
-            let ni = i + m;
-            let nj = j - m;
-            let diagonal_length = cmp::min(ni + 1, 8 - nj);
-            for k in 0..diagonal_length {
-                res[i * 8 + j].set(ni - k, nj + k);
-            }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(ni, nj);
-            res[i * 8 + j].unset(ni + 1 - diagonal_length, nj + diagonal_length - 1);
-        }
-    }
-
-    res
-}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum PlayerOnMove {
@@ -95,7 +39,7 @@ impl Position {
     }
 
     fn get_white_pieces(&self) -> Bitboard {
-        self.get_taken_bitboard() & self.white
+        self.white
     }
 
     fn get_black_pieces(&self) -> Bitboard {
@@ -132,35 +76,81 @@ impl Position {
         num::FromPrimitive::from_usize(ind).unwrap()
     }
 
-    fn is_valid_pawn_move(&self, i: usize, j: usize, k: usize, l: usize) -> bool {
+    fn get_valid_pawn_moves(&self, i: usize, j: usize) -> Bitboard {
         let player_on_move = self.get_player_on_move();
 
-        let my_pawns = match player_on_move {
-            PlayerOnMove::White => self.pawn & self.white,
-            PlayerOnMove::Black => self.pawn - self.white,
+        let my_pawn = match player_on_move {
+            PlayerOnMove::White => self.pawn & (1 << (i * 8 + j)) & self.white,
+            PlayerOnMove::Black => self.pawn & (1 << (i * 8 + j)) & (!self.white),
         };
 
-        assert_eq!(my_pawns.is_set(i, j), true);
+        assert_eq!(my_pawn.is_set(i, j), true);
 
         let classic_move = if player_on_move == PlayerOnMove::White {
-            my_pawns << 8
+            my_pawn << 8
         } else {
-            my_pawns >> 8
+            my_pawn >> 8
         };
 
         let diagonal_move = if player_on_move == PlayerOnMove::White {
-            ((my_pawns << 7) | (my_pawns << 9)) & self.get_black_pieces()
+            ((my_pawn << 7) | (my_pawn << 9)) & self.get_black_pieces()
         } else {
-            ((my_pawns >> 7) | (my_pawns >> 9)) & self.get_white_pieces()
+            ((my_pawn >> 7) | (my_pawn >> 9)) & self.get_white_pieces()
         };
 
         let starting_move = if player_on_move == PlayerOnMove::White {
-            (my_pawns & Bitboard::new(0b1111_1111 << 8)) << 16
+            ((my_pawn << 8) & self.get_free_bitboard()) << 8
         } else {
-            (my_pawns & Bitboard::new(0b1111_1111 << 48)) >> 16
+            ((my_pawn >> 8) & self.get_free_bitboard()) >> 8
         };
 
-        (classic_move | diagonal_move | starting_move).is_set(k, l)
+        let all_moves = classic_move | diagonal_move | starting_move;
+        match player_on_move {
+            PlayerOnMove::White => all_moves & (!self.get_white_pieces()),
+            PlayerOnMove::Black => all_moves & (!self.get_black_pieces()),
+        }
+    }
+
+    fn get_valid_knight_moves(&self, i: usize, j: usize) -> Bitboard {
+        let player_on_move = self.get_player_on_move();
+
+        let my_knight = Bitboard::new(1 << (i * 8 + j));
+
+        assert_eq!(self.knight.is_set(i, j), true);
+
+        let all_moves =
+            (my_knight << 15) | (my_knight << 17) | (my_knight >> 15) | (my_knight >> 17);
+
+        match player_on_move {
+            PlayerOnMove::White => all_moves & (!self.get_white_pieces()),
+            PlayerOnMove::Black => all_moves & (!self.get_black_pieces()),
+        }
+    }
+
+    fn get_valid_rook_moves(&self, i: usize, j: usize) -> Bitboard {
+        let all_moves = ROOK_MAP
+            .get(&(
+                i * 8 + j,
+                self.get_taken_bitboard() & ROOK_BLOCKER_MASKS[i * 8 + j],
+            ))
+            .unwrap();
+        match self.get_player_on_move() {
+            PlayerOnMove::White => *all_moves & (!self.get_white_pieces()),
+            PlayerOnMove::Black => *all_moves & (!self.get_black_pieces()),
+        }
+    }
+
+    fn get_valid_bishop_moves(&self, i: usize, j: usize) -> Bitboard {
+        let all_moves = BISHOP_MAP
+            .get(&(
+                i * 8 + j,
+                self.get_taken_bitboard() & BISHOP_BLOCKER_MASKS[i * 8 + j],
+            ))
+            .unwrap();
+        match self.get_player_on_move() {
+            PlayerOnMove::White => *all_moves & (!self.get_white_pieces()),
+            PlayerOnMove::Black => *all_moves & (!self.get_black_pieces()),
+        }
     }
 
     fn is_valid_move(
@@ -172,12 +162,14 @@ impl Position {
         l: usize,
     ) -> bool {
         match chess_piece {
-            ChessPiece::Pawn => self.is_valid_pawn_move(i, j, k, l),
-            ChessPiece::Rook => true,
-            ChessPiece::Knight => true,
-            ChessPiece::Bishop => true,
-            ChessPiece::Queen => true,
-            ChessPiece::King => true,
+            ChessPiece::Pawn => self.get_valid_pawn_moves(i, j).is_set(k, l),
+            ChessPiece::Rook => self.get_valid_rook_moves(i, j).is_set(k, l),
+            ChessPiece::Knight => self.get_valid_knight_moves(i, j).is_set(k, l),
+            ChessPiece::Bishop => self.get_valid_bishop_moves(i, j).is_set(k, l),
+            ChessPiece::Queen => {
+                (self.get_valid_knight_moves(i, j) | self.get_valid_bishop_moves(i, j)).is_set(k, l)
+            }
+            ChessPiece::King => false,
         }
     }
 
@@ -195,7 +187,13 @@ impl Position {
             self.white.unset(i, j);
             self.white.set(k, l);
         } else {
-            assert_eq!((self.get_taken_bitboard() - self.white).is_set(i, j), true);
+            if self.white.is_set(k, l) {
+                self.white.unset(k, l)
+            }
+            assert_eq!(
+                (self.get_taken_bitboard() & (!self.white)).is_set(i, j),
+                true
+            );
         }
 
         let helper = &mut [
@@ -298,7 +296,7 @@ impl fmt::Display for Position {
             }
             write!(f, "\n").unwrap();
         }
-        write!(f, "   0   1   2   3   4   5   6  7\n")
+        write!(f, "   0   1   2   3   4   5   6   7\n")
         //write!(f, "   a   b   c   d   e   f   g   h\n")
     }
 }

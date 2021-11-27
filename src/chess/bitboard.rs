@@ -6,16 +6,6 @@ pub struct Bitboard {
     val: u64,
 }
 
-fn get_ones(mut x: u64) -> Vec<usize> {
-    let mut res = Vec::new();
-    while x != 0 {
-        let ind = x.trailing_zeros() as usize;
-        res.push(ind);
-        x -= 1 << ind;
-    }
-    res
-}
-
 impl Bitboard {
     pub fn new(val: u64) -> Self {
         Self { val }
@@ -74,6 +64,8 @@ impl_op_ex!(!|a: Bitboard| -> Bitboard { Self::new(!a.val) });
 impl_op_ex!(<< |x: Bitboard, shift: usize| -> Bitboard { Self::new(x.val << shift) });
 impl_op_ex!(>> |x: Bitboard, shift: usize| -> Bitboard { Self::new(x.val >> shift) });
 
+impl_op_ex!(&|a: Bitboard, x: u64| -> Bitboard { Self::new(a.val & x) });
+
 impl fmt::Display for Bitboard {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let bitboard_as_bytes: [u8; 8] = self.val.to_be_bytes();
@@ -82,4 +74,14 @@ impl fmt::Display for Bitboard {
         }
         write!(f, "")
     }
+}
+
+fn get_ones(mut x: u64) -> Vec<usize> {
+    let mut res = Vec::new();
+    while x != 0 {
+        let ind = x.trailing_zeros() as usize;
+        res.push(ind);
+        x -= 1 << ind;
+    }
+    res
 }

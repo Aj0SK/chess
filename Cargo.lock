@@ -11,6 +11,7 @@ name = "chess"
 version = "0.1.0"
 dependencies = [
  "impl_ops",
+ "lazy_static",
  "num",
  "num-derive",
  "num-traits",
@@ -21,6 +22,12 @@ name = "impl_ops"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90f97a5f38dd3ccfbe7aa80f4a0c00930f21b922c74195be0201c51028f22dcf"
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "num"
