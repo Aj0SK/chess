@@ -10,7 +10,14 @@ use chess::position::*;
 use std::io;
 
 fn main() {
-    let mut pos = Position::default();
+    for _ in 0..10 {
+        let pos: Position = rand::random();
+        println!("Pos is:\n{}", pos);
+    }
+
+    return;
+
+    let mut pos: Position = Position::default();
     loop {
         println!("Pos is:\n{}", pos);
         let mut line = String::new();

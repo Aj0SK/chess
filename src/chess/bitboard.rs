@@ -26,10 +26,24 @@ impl Bitboard {
     pub fn toogle(&mut self, i: usize, j: usize) {
         self.val ^= 1 << (i * 8 + j);
     }
+    pub fn count_ones(&self) -> usize {
+        self.val.count_ones() as usize
+    }
+    pub fn get_ones(&self) -> Vec<usize> {
+        let mut res = Vec::new();
+        let mut x = self.val;
+        while x != 0 {
+            let ind = x.trailing_zeros() as usize;
+            res.push(ind);
+            x -= 1 << ind;
+        }
+        res
+    }
+
     // focus on set positions, create all combinations of them, including all being unset
     pub fn generate_subsets(&self) -> Vec<Bitboard> {
         let set_bits = self.val.count_ones() as usize;
-        let ones_indexes = get_ones(self.val);
+        let ones_indexes = self.get_ones();
         assert_eq!(set_bits, ones_indexes.len());
         let mut res = Vec::new();
         for i in 0..((1 as usize) << set_bits) {
@@ -74,14 +88,4 @@ impl fmt::Display for Bitboard {
         }
         write!(f, "")
     }
-}
-
-fn get_ones(mut x: u64) -> Vec<usize> {
-    let mut res = Vec::new();
-    while x != 0 {
-        let ind = x.trailing_zeros() as usize;
-        res.push(ind);
-        x -= 1 << ind;
-    }
-    res
 }
