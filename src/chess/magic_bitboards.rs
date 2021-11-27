@@ -6,8 +6,33 @@ use std::collections::HashMap;
 lazy_static! {
     pub static ref ROOK_BLOCKER_MASKS: [Bitboard; 64] = get_rook_moves();
     pub static ref BISHOP_BLOCKER_MASKS: [Bitboard; 64] = get_bishop_moves();
+    pub static ref KING_POSSIBLE_MOVES: [Bitboard; 64] = get_king_moves();
     pub static ref ROOK_MAP: HashMap<(usize, Bitboard), Bitboard> = get_rook_magic_bitboards();
     pub static ref BISHOP_MAP: HashMap<(usize, Bitboard), Bitboard> = get_bishop_magic_bitboards();
+}
+
+const DIR_I: [i32; 8] = [-1, -1, 0, 1, 1, 1, 0, -1];
+const DIR_J: [i32; 8] = [0, 1, 1, 1, 0, -1, -1, -1];
+
+pub fn get_king_moves() -> [Bitboard; 64] {
+    let mut res: [Bitboard; 64] = [Bitboard::default(); 64];
+
+    for i in 0..8 {
+        for j in 0..8 {
+            for k in 0..8 {
+                let ni = i + DIR_I[k];
+                let nj = j + DIR_J[k];
+
+                if ni < 0 || nj < 0 || ni >= 8 || nj >= 8 {
+                    continue;
+                }
+
+                res[(i * 8 + j) as usize].set(ni as usize, nj as usize);
+            }
+        }
+    }
+
+    res
 }
 
 pub fn get_rook_moves() -> [Bitboard; 64] {
@@ -65,9 +90,6 @@ pub fn get_bishop_moves() -> [Bitboard; 64] {
 
     res
 }
-
-const DIR_I: [i32; 8] = [-1, -1, 0, 1, 1, 1, 0, -1];
-const DIR_J: [i32; 8] = [0, 1, 1, 1, 0, -1, -1, -1];
 
 fn f(blocker_board: Bitboard, i: i32, j: i32, offset: i32) -> Bitboard {
     let mut res = Bitboard::default();

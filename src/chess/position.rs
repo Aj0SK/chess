@@ -3,7 +3,9 @@ use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 
 use super::bitboard::Bitboard;
-use super::magic_bitboards::{BISHOP_BLOCKER_MASKS, BISHOP_MAP, ROOK_BLOCKER_MASKS, ROOK_MAP};
+use super::magic_bitboards::{
+    BISHOP_BLOCKER_MASKS, BISHOP_MAP, KING_POSSIBLE_MOVES, ROOK_BLOCKER_MASKS, ROOK_MAP,
+};
 use std::fmt;
 
 const WHITE_PIECES: [&str; 6] = ["♙", "♖", "♘", "♗", "♕", "♔"];
@@ -42,16 +44,16 @@ impl Position {
         self.pawn | self.rook | self.knight | self.bishop | self.queen | self.king
     }
 
+    fn get_free_bitboard(&self) -> Bitboard {
+        !self.get_taken_bitboard()
+    }
+
     fn get_white_pieces(&self) -> Bitboard {
         self.white
     }
 
     fn get_black_pieces(&self) -> Bitboard {
         self.get_taken_bitboard() - self.white
-    }
-
-    fn get_free_bitboard(&self) -> Bitboard {
-        !self.get_taken_bitboard()
     }
 
     fn get_player_on_move(&self) -> PlayerOnMove {
@@ -62,16 +64,36 @@ impl Position {
         }
     }
 
+    fn get_pieces_on_move(&self) -> Bitboard {
+        match self.get_player_on_move() {
+            PlayerOnMove::White => self.get_white_pieces(),
+            PlayerOnMove::Black => self.get_black_pieces(),
+        }
+    }
+
+    fn get_on_move_piece_type(&self, piece: ChessPiece) -> Bitboard {
+        let piece_mask = match piece {
+            ChessPiece::Pawn => self.pawn,
+            ChessPiece::Rook => self.rook,
+            ChessPiece::Knight => self.knight,
+            ChessPiece::Bishop => self.bishop,
+            ChessPiece::Queen => self.queen,
+            ChessPiece::King => self.king,
+        };
+
+        piece_mask & self.get_pieces_on_move()
+    }
+
     // Returns type of chess piece standing on [i, j]
     // Function assumes that some piece is standing on it
     fn get_piece_on_position(&self, i: usize, j: usize) -> ChessPiece {
         let ind = [
-            self.pawn,
-            self.rook,
-            self.knight,
-            self.bishop,
-            self.queen,
-            self.king,
+            &self.pawn,
+            &self.rook,
+            &self.knight,
+            &self.bishop,
+            &self.queen,
+            &self.king,
         ]
         .iter()
         .position(|&piece_bitfield| piece_bitfield.is_set(i, j))
@@ -81,32 +103,28 @@ impl Position {
     }
 
     fn get_valid_pawn_moves(&self, i: usize, j: usize) -> Bitboard {
-        let player_on_move = self.get_player_on_move();
-
         let my_pawn = self.get_on_move_piece_type(ChessPiece::Pawn) & (1 << (i * 8 + j));
 
         assert_eq!(my_pawn.is_set(i, j), true);
 
-        let classic_move = if player_on_move == PlayerOnMove::White {
-            (my_pawn << 8) & self.get_free_bitboard()
-        } else {
-            (my_pawn >> 8) & self.get_free_bitboard()
+        let player_on_move = self.get_player_on_move();
+
+        let classic_move = match player_on_move {
+            PlayerOnMove::White => (my_pawn << 8) & self.get_free_bitboard(),
+            PlayerOnMove::Black => (my_pawn >> 8) & self.get_free_bitboard(),
         };
 
-        let diagonal_move = if player_on_move == PlayerOnMove::White {
-            ((my_pawn << 7) | (my_pawn << 9)) & self.get_black_pieces()
-        } else {
-            ((my_pawn >> 7) | (my_pawn >> 9)) & self.get_white_pieces()
+        let diagonal_move = match player_on_move {
+            PlayerOnMove::White => ((my_pawn << 7) | (my_pawn << 9)) & self.get_black_pieces(),
+            PlayerOnMove::Black => ((my_pawn >> 7) | (my_pawn >> 9)) & self.get_white_pieces(),
         };
 
-        let starting_move = if player_on_move == PlayerOnMove::White {
-            ((my_pawn << 8) & self.get_free_bitboard()) << 8
-        } else {
-            ((my_pawn >> 8) & self.get_free_bitboard()) >> 8
+        let starting_move = match player_on_move {
+            PlayerOnMove::White => ((my_pawn << 8) & self.get_free_bitboard()) << 8,
+            PlayerOnMove::Black => ((my_pawn >> 8) & self.get_free_bitboard()) >> 8,
         };
 
         let all_moves = classic_move | diagonal_move | starting_move;
-
         all_moves & (!self.get_pieces_on_move())
     }
 
@@ -117,7 +135,6 @@ impl Position {
 
         let all_moves =
             (my_knight << 15) | (my_knight << 17) | (my_knight >> 15) | (my_knight >> 17);
-
         all_moves & (!self.get_pieces_on_move())
     }
 
@@ -146,6 +163,10 @@ impl Position {
         self.get_valid_rook_moves(i, j) | self.get_valid_bishop_moves(i, j)
     }
 
+    fn get_valid_king_moves(&self, i: usize, j: usize) -> Bitboard {
+        KING_POSSIBLE_MOVES[i * 8 + j] & (!self.get_pieces_on_move())
+    }
+
     fn is_valid_move(
         &self,
         chess_piece: ChessPiece,
@@ -154,19 +175,18 @@ impl Position {
         k: usize,
         l: usize,
     ) -> bool {
+        assert_eq!(self.get_taken_bitboard().is_set(i, j), true);
         match chess_piece {
             ChessPiece::Pawn => self.get_valid_pawn_moves(i, j).is_set(k, l),
             ChessPiece::Rook => self.get_valid_rook_moves(i, j).is_set(k, l),
             ChessPiece::Knight => self.get_valid_knight_moves(i, j).is_set(k, l),
             ChessPiece::Bishop => self.get_valid_bishop_moves(i, j).is_set(k, l),
             ChessPiece::Queen => self.get_valid_queen_moves(i, j).is_set(k, l),
-            ChessPiece::King => false,
+            ChessPiece::King => self.get_valid_king_moves(i, j).is_set(k, l),
         }
     }
 
     pub fn make_move(&mut self, i: usize, j: usize, k: usize, l: usize) {
-        assert_eq!(self.get_taken_bitboard().is_set(i, j), true);
-
         let chess_piece = self.get_piece_on_position(i, j);
 
         assert_eq!(self.is_valid_move(chess_piece, i, j, k, l), true);
@@ -204,26 +224,6 @@ impl Position {
 
     fn change_player_on_move(&mut self) {
         self.other ^= 1;
-    }
-
-    fn get_pieces_on_move(&self) -> Bitboard {
-        match self.get_player_on_move() {
-            PlayerOnMove::White => self.get_white_pieces(),
-            PlayerOnMove::Black => self.get_black_pieces(),
-        }
-    }
-
-    fn get_on_move_piece_type(&self, piece: ChessPiece) -> Bitboard {
-        let piece_mask = match piece {
-            ChessPiece::Pawn => self.pawn,
-            ChessPiece::Rook => self.rook,
-            ChessPiece::Knight => self.knight,
-            ChessPiece::Bishop => self.bishop,
-            ChessPiece::Queen => self.queen,
-            ChessPiece::King => self.king,
-        };
-
-        piece_mask & self.get_pieces_on_move()
     }
 }
 
@@ -316,7 +316,7 @@ impl Distribution<Position> for Standard {
                     ChessPiece::Knight => pos.get_valid_knight_moves(i, j),
                     ChessPiece::Bishop => pos.get_valid_bishop_moves(i, j),
                     ChessPiece::Queen => pos.get_valid_queen_moves(i, j),
-                    ChessPiece::King => continue,
+                    ChessPiece::King => pos.get_valid_king_moves(i, j),
                 };
 
                 if valid_moves_mask == Bitboard::new(0) {
