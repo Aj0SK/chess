@@ -20,8 +20,8 @@ pub fn get_king_moves() -> [Bitboard; 64] {
     for i in 0..8 {
         for j in 0..8 {
             for k in 0..8 {
-                let ni = i + DIR_I[k];
-                let nj = j + DIR_J[k];
+                let ni: i32 = i + DIR_I[k];
+                let nj: i32 = j + DIR_J[k];
 
                 if ni < 0 || nj < 0 || ni >= 8 || nj >= 8 {
                     continue;
@@ -44,11 +44,11 @@ pub fn get_rook_moves() -> [Bitboard; 64] {
                 res[i * 8 + j].set(i, k);
                 res[i * 8 + j].set(k, j);
             }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(i, 0);
-            res[i * 8 + j].unset(i, 7);
-            res[i * 8 + j].unset(0, j);
-            res[i * 8 + j].unset(7, j);
+            res[i * 8 + j].clear(i, j);
+            res[i * 8 + j].clear(i, 0);
+            res[i * 8 + j].clear(i, 7);
+            res[i * 8 + j].clear(0, j);
+            res[i * 8 + j].clear(7, j);
         }
     }
 
@@ -67,9 +67,9 @@ pub fn get_bishop_moves() -> [Bitboard; 64] {
             for k in 0..diagonal_length {
                 res[i * 8 + j].set(ni + k, nj + k);
             }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(ni, nj);
-            res[i * 8 + j].unset(ni + diagonal_length - 1, nj + diagonal_length - 1);
+            res[i * 8 + j].clear(i, j);
+            res[i * 8 + j].clear(ni, nj);
+            res[i * 8 + j].clear(ni + diagonal_length - 1, nj + diagonal_length - 1);
         }
     }
 
@@ -82,21 +82,26 @@ pub fn get_bishop_moves() -> [Bitboard; 64] {
             for k in 0..diagonal_length {
                 res[i * 8 + j].set(ni - k, nj + k);
             }
-            res[i * 8 + j].unset(i, j);
-            res[i * 8 + j].unset(ni, nj);
-            res[i * 8 + j].unset(ni + 1 - diagonal_length, nj + diagonal_length - 1);
+            res[i * 8 + j].clear(i, j);
+            res[i * 8 + j].clear(ni, nj);
+            res[i * 8 + j].clear(ni + 1 - diagonal_length, nj + diagonal_length - 1);
         }
     }
 
     res
 }
 
-fn f(blocker_board: Bitboard, i: i32, j: i32, offset: i32) -> Bitboard {
+// Returns reachable positions when piece is on [i][j], there are blockers on
+// positions set to 1 in blocker_board
+// Valid offsets are:
+//      0 for rook
+//      1 for bishop
+fn get_move_board(blocker_board: Bitboard, i: i32, j: i32, offset: i32) -> Bitboard {
     let mut res = Bitboard::default();
     for dir in (offset..8).step_by(2) {
         for steps in 0..8 {
-            let ni = i + steps * DIR_I[dir as usize];
-            let nj = j + steps * DIR_J[dir as usize];
+            let ni: i32 = i + steps * DIR_I[dir as usize];
+            let nj: i32 = j + steps * DIR_J[dir as usize];
             if ni < 0 || nj < 0 || ni >= 8 || nj >= 8 {
                 break;
             }
@@ -106,7 +111,7 @@ fn f(blocker_board: Bitboard, i: i32, j: i32, offset: i32) -> Bitboard {
             }
         }
     }
-    res.unset(i as usize, j as usize);
+    res.clear(i as usize, j as usize);
     res
 }
 
@@ -114,7 +119,7 @@ fn get_rook_magic_bitboards() -> HashMap<(usize, Bitboard), Bitboard> {
     let mut rook_map: HashMap<(usize, Bitboard), Bitboard> = HashMap::new();
     for (ind, blocker_mask) in ROOK_BLOCKER_MASKS.iter().enumerate() {
         for &blocker_board in blocker_mask.generate_subsets().iter() {
-            let move_board = f(blocker_board, (ind / 8) as i32, (ind % 8) as i32, 0);
+            let move_board = get_move_board(blocker_board, (ind / 8) as i32, (ind % 8) as i32, 0);
             rook_map.insert((ind, blocker_board), move_board);
         }
     }
@@ -126,7 +131,7 @@ fn get_bishop_magic_bitboards() -> HashMap<(usize, Bitboard), Bitboard> {
     let mut bishop_map: HashMap<(usize, Bitboard), Bitboard> = HashMap::new();
     for (ind, blocker_mask) in BISHOP_BLOCKER_MASKS.iter().enumerate() {
         for &blocker_board in blocker_mask.generate_subsets().iter() {
-            let move_board = f(blocker_board, (ind / 8) as i32, (ind % 8) as i32, 1);
+            let move_board = get_move_board(blocker_board, (ind / 8) as i32, (ind % 8) as i32, 1);
             bishop_map.insert((ind, blocker_board), move_board);
         }
     }

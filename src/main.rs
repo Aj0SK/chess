@@ -7,17 +7,17 @@ extern crate impl_ops;
 mod chess;
 
 use chess::position::*;
-use std::io;
+// use std::io;
 
 fn main() {
-    for _ in 0..10 {
+    for _ in 0..100 {
         let pos: Position = rand::random();
         println!("Pos is:\n{}", pos);
     }
 
     return;
 
-    let mut pos: Position = Position::default();
+    /*let mut pos: Position = Position::default();
     loop {
         println!("Pos is:\n{}", pos);
         let mut line = String::new();
@@ -31,5 +31,5 @@ fn main() {
             .map(|x| x.parse().expect("Not an integer!"))
             .collect();
         pos.make_move(inputs[0], inputs[1], inputs[2], inputs[3]);
-    }
+    }*/
 }

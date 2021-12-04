@@ -19,30 +19,34 @@ impl Bitboard {
         self.val |= 1 << (i * 8 + j);
     }
     // set to 0
-    pub fn unset(&mut self, i: usize, j: usize) {
+    pub fn clear(&mut self, i: usize, j: usize) {
         self.val &= !(1 << (i * 8 + j));
     }
     // switch 0->1 and 1->0
-    pub fn toogle(&mut self, i: usize, j: usize) {
-        self.val ^= 1 << (i * 8 + j);
-    }
+    // pub fn toogle(&mut self, i: usize, j: usize) {
+    //    self.val ^= 1 << (i * 8 + j);
+    // }
     pub fn count_ones(&self) -> usize {
         self.val.count_ones() as usize
     }
+    pub fn trailing_zeros(&self) -> usize {
+        self.val.trailing_zeros() as usize
+    }
     pub fn get_ones(&self) -> Vec<usize> {
-        let mut res = Vec::new();
+        let ones_count = self.count_ones();
+        let mut ones_index = Vec::with_capacity(ones_count);
         let mut x = self.val;
-        while x != 0 {
-            let ind = x.trailing_zeros() as usize;
-            res.push(ind);
-            x -= 1 << ind;
+        for _ in 0..ones_count {
+            let index = x.trailing_zeros() as usize;
+            ones_index.push(index);
+            x -= 1 << index;
         }
-        res
+        ones_index
     }
 
     // focus on set positions, create all combinations of them, including all being unset
     pub fn generate_subsets(&self) -> Vec<Bitboard> {
-        let set_bits = self.val.count_ones() as usize;
+        let set_bits = self.count_ones();
         let ones_indexes = self.get_ones();
         assert_eq!(set_bits, ones_indexes.len());
         let mut res = Vec::new();
@@ -62,7 +66,7 @@ impl Bitboard {
 // creates empty bitboard
 impl Default for Bitboard {
     fn default() -> Self {
-        Self { val: 0 }
+        Self::new(0)
     }
 }
 
@@ -89,3 +93,11 @@ impl fmt::Display for Bitboard {
         write!(f, "")
     }
 }
+
+/*#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+}*/
