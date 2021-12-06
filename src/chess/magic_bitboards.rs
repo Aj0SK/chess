@@ -7,12 +7,16 @@ lazy_static! {
     pub static ref ROOK_BLOCKER_MASKS: [Bitboard; 64] = get_rook_moves();
     pub static ref BISHOP_BLOCKER_MASKS: [Bitboard; 64] = get_bishop_moves();
     pub static ref KING_POSSIBLE_MOVES: [Bitboard; 64] = get_king_moves();
+    pub static ref KNIGHT_POSSIBLE_MOVES: [Bitboard; 64] = get_knight_moves();
     pub static ref ROOK_MAP: HashMap<(usize, Bitboard), Bitboard> = get_rook_magic_bitboards();
     pub static ref BISHOP_MAP: HashMap<(usize, Bitboard), Bitboard> = get_bishop_magic_bitboards();
 }
 
 const DIR_I: [i32; 8] = [-1, -1, 0, 1, 1, 1, 0, -1];
 const DIR_J: [i32; 8] = [0, 1, 1, 1, 0, -1, -1, -1];
+
+const DIR_KNIGHT_I: [i32; 8] = [-2, -2, -1, 1, 2, 2, -1, 1];
+const DIR_KNIGHT_J: [i32; 8] = [-1, 1, 2, 2, -1, 1, -2, -2];
 
 pub fn get_king_moves() -> [Bitboard; 64] {
     let mut res: [Bitboard; 64] = [Bitboard::default(); 64];
@@ -85,6 +89,25 @@ pub fn get_bishop_moves() -> [Bitboard; 64] {
             res[i * 8 + j].clear(i, j);
             res[i * 8 + j].clear(ni, nj);
             res[i * 8 + j].clear(ni + 1 - diagonal_length, nj + diagonal_length - 1);
+        }
+    }
+
+    res
+}
+
+pub fn get_knight_moves() -> [Bitboard; 64] {
+    let mut res: [Bitboard; 64] = [Bitboard::default(); 64];
+
+    for i in 0..8 {
+        for j in 0..8 {
+            for k in 0..8 {
+                let ni = i + DIR_KNIGHT_I[k];
+                let nj = j + DIR_KNIGHT_J[k];
+                if ni < 0 || nj < 0 || ni >= 8 || nj >= 8 {
+                    continue;
+                }
+                res[(i * 8 + j) as usize].set(ni as usize, nj as usize);
+            }
         }
     }
 

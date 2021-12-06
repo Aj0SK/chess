@@ -6,7 +6,8 @@ use super::bitboard::Bitboard;
 use super::chess_piece::ChessPiece;
 use super::chess_player::ChessPlayer;
 use super::magic_bitboards::{
-    BISHOP_BLOCKER_MASKS, BISHOP_MAP, KING_POSSIBLE_MOVES, ROOK_BLOCKER_MASKS, ROOK_MAP,
+    BISHOP_BLOCKER_MASKS, BISHOP_MAP, KING_POSSIBLE_MOVES, KNIGHT_POSSIBLE_MOVES,
+    ROOK_BLOCKER_MASKS, ROOK_MAP,
 };
 use std::fmt;
 
@@ -53,7 +54,7 @@ impl Position {
         self.other ^= 1;
     }
 
-    fn get_player_on_move(&self) -> ChessPlayer {
+    pub fn get_player_on_move(&self) -> ChessPlayer {
         match self.other & 1 {
             0 => ChessPlayer::White,
             _ => ChessPlayer::Black,
@@ -92,7 +93,7 @@ impl Position {
 
     // Returns type of chess piece standing on [i, j]
     // Function assumes that some piece is standing on it
-    fn get_piece_on_position(&self, i: usize, j: usize) -> Option<ChessPiece> {
+    pub fn get_piece_on_position(&self, i: usize, j: usize) -> Option<ChessPiece> {
         let index = [
             &self.pawn,
             &self.rook,
@@ -107,6 +108,19 @@ impl Position {
         match index {
             Some(position) => Some(num::FromPrimitive::from_usize(position).unwrap()),
             None => None,
+        }
+    }
+
+    pub fn get_player_on_position(&self, i: usize, j: usize) -> Option<ChessPlayer> {
+        match self.get_taken_bitboard().is_set(i, j) {
+            true => {
+                if self.white.is_set(i, j) {
+                    Some(ChessPlayer::White)
+                } else {
+                    Some(ChessPlayer::Black)
+                }
+            }
+            false => None,
         }
     }
 
@@ -128,8 +142,8 @@ impl Position {
         };
 
         let starting_move = match player {
-            ChessPlayer::White => ((my_pawn << 8) & self.get_free_bitboard()) << 8,
-            ChessPlayer::Black => ((my_pawn >> 8) & self.get_free_bitboard()) >> 8,
+            ChessPlayer::White => (((my_pawn & (0xff << 8)) << 16) & self.get_free_bitboard()),
+            ChessPlayer::Black => (((my_pawn & (0xff << 48)) >> 16) & self.get_free_bitboard()),
         };
 
         let all_moves = classic_move | diagonal_move | starting_move;
@@ -140,14 +154,7 @@ impl Position {
         assert!(self
             .get_piece_type_by_player(ChessPiece::Knight, player)
             .is_set(i, j));
-        let my_knight =
-            self.get_piece_type_by_player(ChessPiece::Knight, player) & (1 << (i * 8 + j));
-
-        assert_eq!(my_knight.is_set(i, j), true);
-
-        let all_moves =
-            (my_knight << 15) | (my_knight << 17) | (my_knight >> 15) | (my_knight >> 17);
-        all_moves & (!self.get_pieces_of_player(player))
+        KNIGHT_POSSIBLE_MOVES[i * 8 + j] & (!self.get_pieces_of_player(player))
     }
 
     fn get_valid_rook_moves(&self, i: usize, j: usize, player: ChessPlayer) -> Bitboard {
@@ -315,27 +322,11 @@ impl Position {
 
     fn get_attacked_by_pawns(&self, by_player: ChessPlayer) -> Bitboard {
         let my_pawns = self.get_piece_type_by_player(ChessPiece::Pawn, by_player);
-        let classic_move = match by_player {
-            ChessPlayer::White => (my_pawns << 8) & self.get_free_bitboard(),
-            ChessPlayer::Black => (my_pawns >> 8) & self.get_free_bitboard(),
-        };
         let diagonal_move = match by_player {
             ChessPlayer::White => ((my_pawns << 7) | (my_pawns << 9)) & self.get_black_pieces(),
             ChessPlayer::Black => ((my_pawns >> 7) | (my_pawns >> 9)) & self.get_white_pieces(),
         };
-        let starting_move = match by_player {
-            ChessPlayer::White => ((my_pawns << 8) & self.get_free_bitboard()) << 8,
-            ChessPlayer::Black => ((my_pawns >> 8) & self.get_free_bitboard()) >> 8,
-        };
-        let all_moves = classic_move | diagonal_move | starting_move;
-        all_moves & !self.get_pieces_of_player(by_player)
-    }
-
-    fn get_attacked_by_knight(&self, by_player: ChessPlayer) -> Bitboard {
-        let my_knights = self.get_piece_type_by_player(ChessPiece::Knight, by_player);
-
-        let all_moves =
-            (my_knights << 15) | (my_knights << 17) | (my_knights >> 15) | (my_knights >> 17);
+        let all_moves = diagonal_move;
         all_moves & !self.get_pieces_of_player(by_player)
     }
 
@@ -352,6 +343,9 @@ impl Position {
                 }
                 ChessPiece::Bishop => {
                     attacked = attacked | self.get_valid_bishop_moves(p / 8, p % 8, by_player);
+                }
+                ChessPiece::Knight => {
+                    attacked = attacked | self.get_valid_knight_moves(p / 8, p % 8, by_player);
                 }
                 _ => {
                     panic!("Problem.");
@@ -377,9 +371,9 @@ impl Position {
 
     pub fn get_attacked_positions(&self, by_player: ChessPlayer) -> Bitboard {
         self.get_attacked_by_pawns(by_player)
-            | self.get_attacked_by_knight(by_player)
             | self.get_attacked_by_king(by_player)
             | self.get_attacked_by_other(by_player, ChessPiece::Rook)
+            | self.get_attacked_by_other(by_player, ChessPiece::Knight)
             | self.get_attacked_by_other(by_player, ChessPiece::Bishop)
             | self.get_attacked_by_other(by_player, ChessPiece::Queen)
     }
